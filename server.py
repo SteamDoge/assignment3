@@ -1,106 +1,70 @@
-# server.py
 import socket
 import threading
 import time
 
-tuple_space = {}  # 共享空间：key -> value
-stats = {
-    "clients": 0,
-    "ops": 0,
-    "reads": 0,
-    "gets": 0,
-    "puts": 0,
-    "errors": 0
-}
-lock = threading.Lock()
+# 全局 tuple space 和锁
+tuple_space = {}
+space_lock = threading.Lock()
 
-def format_response(status, key, value="", op=""):
-    if status == "OK":
-        return f"{len(f'OK ({key}, {value}) {op}')+4:03} OK ({key}, {value}) {op}"
-    else:
-        msg = f"{key} {value}"
-        return f"{len(f'ERR {msg}')+4:03} ERR {msg}"
-
+# 处理一个客户端连接
 def handle_client(conn, addr):
-    global stats
+    print(f"[+] 客户端已连接：{addr}")
     with conn:
-        with lock:
-            stats["clients"] += 1
         while True:
-            try:
-                data = conn.recv(1024)
-                if not data:
-                    break
-                msg = data.decode().strip()
-                if len(msg) < 5:
-                    continue
-                _, cmd, rest = msg[0:3], msg[4], msg[6:]
-                parts = rest.split(" ", 1)
-                key = parts[0]
-                value = parts[1] if len(parts) > 1 else ""
-
-                response = ""
-                with lock:
-                    stats["ops"] += 1
-                    if cmd == "R":
-                        stats["reads"] += 1
-                        if key in tuple_space:
-                            response = format_response("OK", key, tuple_space[key], "read")
-                        else:
-                            stats["errors"] += 1
-                            response = format_response("ERR", key, "does not exist")
-                    elif cmd == "G":
-                        stats["gets"] += 1
-                        if key in tuple_space:
-                            val = tuple_space.pop(key)
-                            response = format_response("OK", key, val, "removed")
-                        else:
-                            stats["errors"] += 1
-                            response = format_response("ERR", key, "does not exist")
-                    elif cmd == "P":
-                        stats["puts"] += 1
-                        if key in tuple_space:
-                            stats["errors"] += 1
-                            response = format_response("ERR", key, "already exists")
-                        else:
-                            tuple_space[key] = value
-                            response = format_response("OK", key, value, "added")
-                    else:
-                        continue
-                conn.sendall(response.encode() + b"\n")
-            except Exception as e:
-                print("Error:", e)
+            data = conn.recv(1024)
+            if not data:
                 break
+            request = data.decode().strip()
+            print(f"[Request] {addr} → {request}")
+            parts = request.split(' ', 2)
+            cmd = parts[0].upper()
+            key = parts[1] if len(parts) > 1 else ""
+            val = parts[2] if len(parts) > 2 else ""
+            
+            with space_lock:
+                if cmd == "PUT" and key:
+                    if key in tuple_space:
+                        resp = f"ERR {key} already exists"
+                    else:
+                        tuple_space[key] = val
+                        resp = f"OK ({key}, {val}) added"
+                elif cmd == "GET" and key:
+                    if key in tuple_space:
+                        old = tuple_space.pop(key)
+                        resp = f"OK ({key}, {old}) removed"
+                    else:
+                        resp = f"ERR {key} does not exist"
+                elif cmd == "READ" and key:
+                    if key in tuple_space:
+                        resp = f"OK ({key}, {tuple_space[key]}) read"
+                    else:
+                        resp = f"ERR {key} does not exist"
+                else:
+                    resp = "ERR invalid command"
+            
+            # 发送响应
+            conn.sendall((resp + "\n").encode())
 
-def summary_thread():
+    print(f"[-] 客户端已断开：{addr}")
+
+# 定时打印 summary
+def summary():
     while True:
         time.sleep(10)
-        with lock:
-            count = len(tuple_space)
-            total_key = sum(len(k) for k in tuple_space)
-            total_val = sum(len(v) for v in tuple_space.values())
-            print(f"\n--- Server Summary ---")
-            print(f"Tuples: {count}")
-            print(f"Avg key size: {total_key / count if count else 0:.2f}")
-            print(f"Avg val size: {total_val / count if count else 0:.2f}")
-            print(f"Total clients: {stats['clients']}")
-            print(f"Total ops: {stats['ops']}, READs: {stats['reads']}, GETs: {stats['gets']}, PUTs: {stats['puts']}, ERRs: {stats['errors']}")
-            print(f"----------------------\n")
+        with space_lock:
+            n = len(tuple_space)
+            avgk = (sum(len(k) for k in tuple_space) / n) if n else 0
+            avgv = (sum(len(v) for v in tuple_space.values()) / n) if n else 0
+        print(f"\n=== SUMMARY ===\nTuples: {n}, Avg key: {avgk:.1f}, Avg val: {avgv:.1f}\n================\n")
 
 def main():
-    import sys
-    if len(sys.argv) != 2:
-        print("Usage: python server.py <port>")
-        return
-    port = int(sys.argv[1])
-    host = "0.0.0.0"
+    HOST, PORT = "localhost", 51234
 
-    threading.Thread(target=summary_thread, daemon=True).start()
-
-    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-        s.bind((host, port))
+    threading.Thread(target=summary, daemon=True).start()
+    with socket.socket() as s:
+        s.bind((HOST, PORT))
         s.listen()
-        print(f"Server listening on port {port}")
+        print(f"[*] 服务器启动，监听 {HOST}:{PORT}")
         while True:
             conn, addr = s.accept()
             threading.Thread(target=handle_client, args=(conn, addr), daemon=True).start()
