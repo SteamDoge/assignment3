@@ -12,7 +12,7 @@ assignment3/
 │   └── ...
 └── README.md
 
-ps: client.py and txts are rubbish now
+ps: client_test.py and txts are rubbish now
 ```
 
 ## Running the Server
