@@ -40,6 +40,8 @@ Start the server on the default host (`localhost`) and port (`51234`):
 python server.py
 ```
 
+If you want to change the port, you should edit the *server.py* and *clients.py*
+
 The server will listen for incoming connections, process requests, and print a summary of the tuple space every 10 seconds.
 
 ## Running the Client
@@ -47,7 +49,7 @@ The server will listen for incoming connections, process requests, and print a s
 The client script automatically processes all request files in `test-workload/`. Simply run:
 
 ```bash
-python client.py
+python clients.py
 ```
 
 ## License
