@@ -15,23 +15,6 @@ assignment3/
 ps: client.py and txts are rubbish now
 ```
 
-## Installation
-
-1. Clone the repository:
-
-   ```bash
-   git clone https://github.com/<your-username>/assignment3.git
-   cd assignment3
-   ```
-
-2. (Optional) Create a virtual environment and activate it:
-
-   ```bash
-   python3 -m venv venv
-   source venv/bin/activate   # macOS/Linux
-   venv\Scripts\activate    # Windows
-   ```
-
 ## Running the Server
 
 Start the server on the default host (`localhost`) and port (`51234`):
@@ -40,6 +23,8 @@ Start the server on the default host (`localhost`) and port (`51234`):
 python server.py
 ```
 
+If you want to change the port, you should edit the *server.py* and *clients.py*
+
 The server will listen for incoming connections, process requests, and print a summary of the tuple space every 10 seconds.
 
 ## Running the Client
@@ -47,7 +32,7 @@ The server will listen for incoming connections, process requests, and print a s
 The client script automatically processes all request files in `test-workload/`. Simply run:
 
 ```bash
-python client.py
+python clients.py
 ```
 
 ## License
